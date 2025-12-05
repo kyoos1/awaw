@@ -34,7 +34,9 @@ export default function Admin() {
 
       if (error) throw error;
 
+      // CRITICAL: Only allow admin role
       if (profileData.role !== "admin") {
+        alert("Access Denied: Admin privileges required");
         navigate("/dashboard");
         return;
       }
@@ -139,13 +141,20 @@ export default function Admin() {
   };
 
   const handleLogout = async () => {
+    if (!confirm("Are you sure you want to logout?")) return;
+    
     try {
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
+      localStorage.removeItem("auth");
       navigate("/", { replace: true });
     } catch (error) {
       console.error("Error logging out:", error);
     }
+  };
+
+  const goToProfile = () => {
+    navigate("/profile");
   };
 
   const getStatusColor = (status) => {
@@ -190,15 +199,21 @@ export default function Admin() {
         <h1 className="text-white text-2xl font-bold">Admin Dashboard</h1>
 
         <div className="flex items-center gap-4">
-          <span className="text-white text-sm">{profile?.email}</span>
+          <div className="text-right mr-2">
+            <p className="text-white text-sm font-medium">{profile?.full_name || "Admin"}</p>
+            <p className="text-orange-100 text-xs">{profile?.email}</p>
+          </div>
+          
           <button
-            onClick={() => navigate("/profile")}
+            onClick={goToProfile}
             className="text-white hover:text-orange-100 transition"
+            title="View Profile"
           >
             <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
             </svg>
           </button>
+          
           <button
             onClick={handleLogout}
             className="bg-white text-orange-600 px-4 py-2 rounded-lg font-medium hover:bg-orange-50 transition"
