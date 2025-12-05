@@ -1,10 +1,12 @@
 import { useState } from "react";
+import { supabase } from '../supabase';
 
 export default function Login({ onClose, onSwitchToRegister, onLoginSuccess }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
     if (!email || !password) {
@@ -12,7 +14,55 @@ export default function Login({ onClose, onSwitchToRegister, onLoginSuccess }) {
       return;
     }
 
-    onLoginSuccess({ user: email, role: "user" });
+    setLoading(true);
+
+    try {
+      // Sign in with Supabase
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email,
+        password
+      });
+
+      if (authError) throw authError;
+
+      // Get user profile from profiles table
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', authData.user.id)
+        .single();
+
+      if (profileError) {
+        console.error("Profile fetch error:", profileError);
+        // If profile doesn't exist, create one with default role
+        const { error: insertError } = await supabase
+          .from('profiles')
+          .insert([{
+            id: authData.user.id,
+            email: email,
+            role: 'user'
+          }]);
+
+        if (insertError) console.error("Profile creation error:", insertError);
+
+        onLoginSuccess({ 
+          user: email, 
+          role: 'user',
+          userId: authData.user.id 
+        });
+      } else {
+        onLoginSuccess({ 
+          user: email, 
+          role: profileData.role || 'user',
+          userId: authData.user.id
+        });
+      }
+    } catch (error) {
+      console.error("Login error:", error);
+      alert(error.message || "Login failed. Please check your credentials.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -56,6 +106,7 @@ export default function Login({ onClose, onSwitchToRegister, onLoginSuccess }) {
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="Enter your email"
                   className="w-full bg-white rounded-full px-4 py-3 pr-12 outline-none text-sm text-gray-800 shadow-md"
+                  disabled={loading}
                 />
                 <img
                   src="/icons/user.png"
@@ -75,6 +126,7 @@ export default function Login({ onClose, onSwitchToRegister, onLoginSuccess }) {
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Enter your password"
                   className="w-full bg-white rounded-full px-4 py-3 pr-12 outline-none text-sm text-gray-800 shadow-md"
+                  disabled={loading}
                 />
                 <img
                   src="/icons/lock.png"
@@ -87,9 +139,10 @@ export default function Login({ onClose, onSwitchToRegister, onLoginSuccess }) {
             {/* LOGIN BUTTON */}
             <button
               type="submit"
-              className="w-full bg-orange-600 hover:bg-orange-500 text-white font-semibold py-3 rounded-full shadow-xl transition-all duration-300 hover:scale-105"
+              disabled={loading}
+              className="w-full bg-orange-600 hover:bg-orange-500 text-white font-semibold py-3 rounded-full shadow-xl transition-all duration-300 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Log in
+              {loading ? "Logging in..." : "Log in"}
             </button>
 
             {/* Divider */}
@@ -99,8 +152,6 @@ export default function Login({ onClose, onSwitchToRegister, onLoginSuccess }) {
               <div className="flex-1 h-px bg-white/40"></div>
             </div>
 
-           
-
             {/* SIGNUP LINK */}
             <p className="text-xs text-white/90 text-center pt-2">
               Don't have an account?{" "}
@@ -108,6 +159,7 @@ export default function Login({ onClose, onSwitchToRegister, onLoginSuccess }) {
                 type="button"
                 onClick={onSwitchToRegister}
                 className="font-semibold underline text-white"
+                disabled={loading}
               >
                 Sign Up
               </button>

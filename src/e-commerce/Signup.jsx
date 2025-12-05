@@ -1,16 +1,19 @@
 import { useState } from "react";
+import { supabase } from '../supabase';
 
 export default function Signup({ onClose, onSwitchToLogin, onLoginSuccess }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [name, setName] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     
-    if (!name || !email || !password || !confirmPassword) {
-      alert("Please fill in all fields");
+    if (!firstName || !email || !password || !confirmPassword) {
+      alert("Please fill in all required fields");
       return;
     }
 
@@ -24,10 +27,52 @@ export default function Signup({ onClose, onSwitchToLogin, onLoginSuccess }) {
       return;
     }
 
-    onLoginSuccess({
-      user: email,
-      role: "user"
-    });
+    setLoading(true);
+
+    try {
+      // Sign up with Supabase
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            full_name: `${firstName} ${lastName}`.trim()
+          }
+        }
+      });
+
+      if (authError) throw authError;
+
+      if (authData.user) {
+        // Create profile in profiles table
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .insert([{
+            id: authData.user.id,
+            email: email,
+            full_name: `${firstName} ${lastName}`.trim(),
+            role: 'user'
+          }]);
+
+        if (profileError) {
+          console.error("Profile creation error:", profileError);
+        }
+
+        alert("Account created successfully! Please check your email to verify your account.");
+        
+        // Auto login after signup
+        onLoginSuccess({
+          user: email,
+          role: 'user',
+          userId: authData.user.id
+        });
+      }
+    } catch (error) {
+      console.error("Signup error:", error);
+      alert(error.message || "Signup failed. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -69,6 +114,7 @@ export default function Signup({ onClose, onSwitchToLogin, onLoginSuccess }) {
                 onChange={(e) => setEmail(e.target.value)}
                 className="w-full bg-transparent outline-none text-sm text-gray-700"
                 placeholder="Email"
+                disabled={loading}
               />
             </div>
 
@@ -77,17 +123,21 @@ export default function Signup({ onClose, onSwitchToLogin, onLoginSuccess }) {
               <div className="flex-1 bg-white rounded-lg px-4 py-3 shadow">
                 <input
                   type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
+                  value={firstName}
+                  onChange={(e) => setFirstName(e.target.value)}
                   className="w-full bg-transparent outline-none text-sm text-gray-700"
                   placeholder="First Name"
+                  disabled={loading}
                 />
               </div>
               <div className="flex-1 bg-white rounded-lg px-4 py-3 shadow">
                 <input
                   type="text"
+                  value={lastName}
+                  onChange={(e) => setLastName(e.target.value)}
                   className="w-full bg-transparent outline-none text-sm text-gray-700"
                   placeholder="Last Name"
+                  disabled={loading}
                 />
               </div>
             </div>
@@ -100,6 +150,7 @@ export default function Signup({ onClose, onSwitchToLogin, onLoginSuccess }) {
                 onChange={(e) => setPassword(e.target.value)}
                 className="w-full bg-transparent outline-none text-sm text-gray-700"
                 placeholder="Password"
+                disabled={loading}
               />
             </div>
 
@@ -111,15 +162,17 @@ export default function Signup({ onClose, onSwitchToLogin, onLoginSuccess }) {
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 className="w-full bg-transparent outline-none text-sm text-gray-700"
                 placeholder="Confirm Password"
+                disabled={loading}
               />
             </div>
 
             {/* Signup button */}
             <button 
               type="submit"
-              className="w-full bg-orange-600 hover:bg-orange-500 text-white text-sm font-semibold py-3 rounded-lg shadow mb-6 transition"
+              disabled={loading}
+              className="w-full bg-orange-600 hover:bg-orange-500 text-white text-sm font-semibold py-3 rounded-lg shadow mb-6 transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Create Account
+              {loading ? "Creating Account..." : "Create Account"}
             </button>
 
             {/* Divider */}
@@ -129,7 +182,6 @@ export default function Signup({ onClose, onSwitchToLogin, onLoginSuccess }) {
               <div className="flex-1 h-px bg-orange-600"></div>
             </div>
 
-         
             {/* Bottom text */}
             <p className="text-xs text-gray-800 text-center">
               Already have an account?{" "}
@@ -137,6 +189,7 @@ export default function Signup({ onClose, onSwitchToLogin, onLoginSuccess }) {
                 type="button" 
                 onClick={onSwitchToLogin} 
                 className="underline font-semibold"
+                disabled={loading}
               >
                 Login
               </button>
